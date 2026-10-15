@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Espace livreur — SWAM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="swam.css">
+<style>
+.tabs2{display:flex;gap:8px;overflow-x:auto;padding:18px 0 6px;scrollbar-width:none}
+.tabs2 .chip b{background:var(--accent);color:var(--text);border-radius:99px;padding:0 8px;margin-left:6px;font-size:13px}
+.ord{display:grid;gap:12px}
+.ord .top-r{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ord .dest{font:800 20px "Bricolage Grotesque";line-height:1.25}
+.pay{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pay div{background:var(--surface);border-radius:14px;padding:12px}
+.pay div.g{border-left:6px solid var(--secondary);border-radius:6px 14px 14px 6px}
+.pay div.c{border-left:6px solid var(--primary);border-radius:6px 14px 14px 6px}
+.pay b{display:block;font:800 20px "Bricolage Grotesque"}
+.det{background:var(--surface);border-radius:14px;padding:12px;font-size:14px;display:grid;gap:4px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts button,.acts a{flex:1;min-width:130px;text-align:center}
+.acts a{border:1px solid var(--line);border-radius:14px;padding:12px 18px;font-weight:700;background:#fff}
+.acts a:hover{background:var(--surface)}
+.hint{font-size:13px;color:var(--light)}
+</style>
+</head><body>
+<header class="top"><nav class="wrap nav"><a class="logo" href="livreur.html">swam<i>.</i></a>
+<div class="links"><button class="ghost" onclick="refreshAll(false)">Actualiser</button><button class="ghost" onclick="logout()">Déconnexion</button></div></nav></header>
+<main class="wrap page">
+<h1 id="hello">Espace livreur</h1>
+<p class="muted">Les commandes apparaissent ici quand l'administrateur lance la recherche d'un livreur.</p>
+<div class="stats" style="margin-top:18px"><div><b id="sToday">0</b><span class="muted">livraison(s) aujourd'hui</span></div><div><b id="sDone">0</b><span class="muted">livrées au total</span></div><div><b id="sGain">0 FCFA</b><span class="muted">gains (livraisons terminées)</span></div></div>
+<div class="tabs2" id="tabs"></div>
+<div id="list"></div>
+</main>
+<div id="toast" class="toast" role="status"></div>
+<script>
+const API='https://swamapp-production.up.railway.app';
+const EP={
+ available:'/api/livreur/commandes-disponibles',
+ mine:'/api/livreur/mes-livraisons',
+ history:'/api/livreur/historique-livraisons',
+ stats:'/api/livreur/stats',
+ detail:id=>`/api/livreur/commandes/${id}`,
+ accept:id=>`/api/livreur/commandes/${id}/accepter`,
+ status:id=>`/api/livreur/commandes/${id}/statut`
+};
+const ST={prep:'preparation',way:'livraison',done:'livree',cancel:'annulee'};
+const LABEL={preparation:'À récupérer',livraison:'En route',livree:'Livrée',annulee:'Annulée'};
+const RATE=0.6; /* part des frais de livraison reversée au livreur (comme dans votre backend) */
+const $=s=>document.querySelector(s);
+const money=n=>Number(n||0).toLocaleString('fr-FR',{maximumFractionDigits:0})+' FCFA';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fdate=s=>s?new Date(s).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+const token=()=>localStorage.getItem('swam_token');
+const user=JSON.parse(localStorage.getItem('swam_user')||'null');
+if(!token()||!user||user.role!=='livreur')location.href='connexion.html';
+let avail=[],mine=[],hist=[],stats={},tab='avail',busy=new Set(),open=new Set(),details={},prevIds=null;
+const gain=o=>Math.round(o.frais*RATE);
+function toast(s){const t=$('#toast');t.textContent=s;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)}
+function logout(){localStorage.removeItem('swam_token');localStorage.removeItem('swam_user');location.href='connexion.html'}
+async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token(),...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(r.status===401||r.status===422)logout();if(!r.ok)throw new Error(d.message||'Erreur '+r.status);return d}
+const norm=o=>({id:o.id,code:o.code_suivi,statut:o.statut,adresse:o.adresse_livraison||o.adresse,dist:Number(o.distance||0),frais:Number(o.frais_livraison||0),total:Number(o.total||0),client:o.client?.nom,tel:o.client?.telephone,time:o.date_recherche,dl:o.date_livraison});
+async function refreshLive(silent){try{const [a,m]=await Promise.all([api(EP.available),api(EP.mine)]);avail=a.map(norm);mine=m.map(norm);const ids=new Set(avail.map(o=>o.id));if(prevIds&&[...ids].some(i=>!prevIds.has(i))){toast('Nouvelle commande disponible 🛵');navigator.vibrate&&navigator.vibrate(200)}prevIds=ids;render()}catch(e){if(!silent)toast(e.message)}}
+async function refreshAll(silent){await refreshLive(silent);try{const [h,s]=await Promise.all([api(EP.history),api(EP.stats)]);hist=h.map(norm);stats=s;render()}catch(e){if(!silent)toast(e.message)}}
+async function accept(id){if(busy.has(id))return;busy.add(id);render();try{await api(EP.accept(id),{method:'PUT'});toast('Commande acceptée ✔');tab='cur'}catch(e){toast(e.message)}busy.delete(id);await refreshAll(true)}
+async function setStatus(id,statut,ask){if(ask&&!confirm(ask))return;if(busy.has(id))return;busy.add(id);render();try{await api(EP.status(id),{method:'PUT',body:JSON.stringify({statut})});toast(statut===ST.done?'Livraison terminée 🎉':'Statut mis à jour');if(statut===ST.done)tab='hist'}catch(e){toast(e.message)}busy.delete(id);await refreshAll(true)}
+async function toggleDetail(id){if(open.has(id)){open.delete(id);render();return}open.add(id);render();if(!details[id]){try{details[id]=await api(EP.detail(id))}catch(e){toast(e.message);open.delete(id)}render()}}
+function detailBox(o,kind){if(!open.has(o.id))return'';const d=details[o.id];if(!d)return'<div class="det">Chargement…</div>';return `<div class="det"><b>Articles</b>${(d.articles||[]).map(a=>`<span>${esc(a.nom)} × ${a.quantite}</span>`).join('')||'<span class="muted">—</span>'}<span class="muted">Total commande : ${money(d.total)}</span></div>`}
+function card(o,kind){const b=busy.has(o.id),hasActive=mine.length>0,maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent((o.adresse||'')+(/assinie/i.test(o.adresse||'')?'':' Assinie'));
+const g=kind==='hist'?(o.statut===ST.done?money(gain(o)):'—'):money(gain(o));
+let act='',extra='';
+if(kind==='avail'){act=`<button ${b||hasActive?'disabled':''} onclick="accept(${o.id})">${b?'Acceptation…':'Accepter la commande'}</button>`;if(hasActive)extra='<div class="hint">Terminez votre livraison en cours avant d\'en accepter une autre.</div>'}
+else if(kind==='cur'){act=(o.statut===ST.prep?`<button ${b?'disabled':''} onclick="setStatus(${o.id},ST.way)">Commande récupérée</button>`:`<button ${b?'disabled':''} onclick="setStatus(${o.id},ST.done,'Confirmer que la commande est livrée ?')">Marquer comme livrée</button>`)+`<a href="${maps}" target="_blank" rel="noopener">Itinéraire</a>${o.tel?`<a href="tel:${esc(o.tel)}">Appeler ${esc(o.client||'')}</a>`:''}`}
+const when=kind==='avail'&&o.time?`<span class="muted">depuis ${esc(o.time)}</span>`:kind==='hist'&&o.dl?`<span class="muted">${fdate(o.dl)}</span>`:'';
+const tag=kind==='avail'?'Disponible':LABEL[o.statut]||esc(o.statut);
+return `<article class="box ord"><div class="top-r"><b>#${esc(o.code)}</b><span>${when} <span class="status">${tag}</span></span></div><div><div class="dest">${esc(o.adresse)}</div>${kind==='avail'&&o.client?`<div class="muted">Client : ${esc(o.client)}</div>`:''}</div><div class="pay"><div class="g"><span class="muted">Votre gain</span><b>${g}</b></div><div class="c"><span class="muted">Distance</span><b>${o.dist?(o.dist/1000).toLocaleString('fr-FR')+' km':'—'}</b></div></div>${detailBox(o,kind)}${extra}<div class="acts">${act}${kind==='hist'?'':`<button class="ghost" onclick="toggleDetail(${o.id})">${open.has(o.id)?'Masquer':'Voir les articles'}</button>`}</div></article>`}
+function render(){const done=hist.filter(o=>o.statut===ST.done);
+$('#sToday').textContent=stats.livraisons_aujourdhui??0;$('#sDone').textContent=done.length;$('#sGain').textContent=money(done.reduce((s,o)=>s+gain(o),0));
+document.title=(avail.length?`(${avail.length}) `:'')+'Espace livreur — SWAM';
+const T=[['avail','Disponibles',avail.length],['cur','En cours',mine.length],['hist','Historique',hist.length]];
+$('#tabs').innerHTML=T.map(([k,l,n])=>`<button class="chip ${k===tab?'on':''}" data-t="${k}">${l}<b>${n}</b></button>`).join('');
+const L={avail:[avail,'Aucune commande disponible pour le moment. La liste se met à jour toute seule.'],cur:[mine,'Aucune livraison en cours. Acceptez une commande dans « Disponibles ».'],hist:[hist,'Aucune livraison dans l\'historique.']}[tab];
+$('#list').innerHTML=L[0].length?L[0].map(o=>card(o,tab)).join(''):`<div class="empty">${L[1]}</div>`}
+$('#tabs').onclick=e=>{const b=e.target.closest('[data-t]');if(b){tab=b.dataset.t;render()}};
+$('#hello').textContent='Bonjour, '+(user?.nom||'livreur');
+render();refreshAll();
+setInterval(()=>{if(!document.hidden)refreshLive(true)},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll(true)});
+</script>
+</body></html>

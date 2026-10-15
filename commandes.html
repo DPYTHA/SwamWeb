@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mes commandes — SWAM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="swam.css">
+</head><body>
+<header class="top"><nav class="wrap nav"><a class="logo" href="index.html">swam<i>.</i></a>
+<div class="links"><a href="index.html">Accueil</a><a href="profil.html">Mon compte</a><a class="cta" href="index.html#catalogue">Commander</a></div></nav></header>
+<main class="wrap page">
+<h1>Mes commandes</h1>
+<p class="muted">Retrouvez vos commandes ou suivez une livraison avec son code.</p>
+<section class="box"><h2>Suivre une commande</h2>
+<form class="bar" id="trackForm"><input class="field" id="code" placeholder="Code de suivi, ex. A1B2C3D4" required><button>Suivre</button></form>
+<div id="trackingResult"></div></section>
+<section class="box"><div class="bar" style="justify-content:space-between;margin-bottom:6px"><h2 style="margin:0">Historique</h2><button class="ghost" onclick="loadOrders()">Actualiser</button></div>
+<div id="orders">Chargement…</div></section>
+</main>
+<script>const API='https://swamapp-production.up.railway.app';const token=()=>localStorage.getItem('swam_token');const money=n=>Number(n||0).toLocaleString('fr-FR')+' FCFA';async function api(path,opts={}){let r=await fetch(API+path,{...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...(token()?{Authorization:'Bearer '+token()}:{}),...(opts.headers||{})}});let d;try{d=await r.json()}catch{d={}}if(!r.ok)throw Error(d.message||'Erreur API '+r.status);return d}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function status(s){return String(s||'inconnu').replaceAll('_',' ')}async function loadOrders(){const el=document.querySelector('#orders');if(!token()){el.innerHTML='<div class="empty">Connectez-vous pour voir votre historique. <a href="connexion.html"><b>Se connecter</b></a></div>';return}el.textContent='Chargement…';try{let list=await api('/api/commandes/client');el.innerHTML=list.length?list.map(o=>`<div class="item"><div><b>Commande ${esc(o.code_suivi)}</b><div class="muted">${esc(o.date)} · ${o.articles_count} article(s)</div><div class="muted">Paiement : ${esc(status(o.statut_paiement))}</div></div><div class="end"><b>${money(o.total)}</b><span class="status">${esc(status(o.statut))}</span><button class="ghost" onclick="track('${esc(o.code_suivi)}')">Suivre</button></div></div>`).join(''):'<div class="empty">Aucune commande pour le moment. <a href="index.html#catalogue"><b>Découvrir le catalogue</b></a></div>'}catch(e){el.textContent=e.message}}async function track(code){document.querySelector('#code').value=code;const el=document.querySelector('#trackingResult');el.textContent='Recherche…';try{const d=await api('/api/commandes/suivi/'+encodeURIComponent(code));el.innerHTML=`<div class="item" style="margin-top:14px;border-top:1px solid var(--line)"><div><b>Commande ${esc(d.code_suivi)}</b><div class="muted">Adresse : ${esc(d.adresse)}</div><div class="muted">Paiement : ${esc(status(d.statut_paiement))}</div><p style="margin:8px 0 0">${(d.articles||[]).map(a=>`${esc(a.nom)} × ${a.quantite}`).join('<br>')}</p></div><div class="end"><span class="status">${esc(status(d.statut))}</span><b style="font-size:22px">${money(d.total)}</b></div></div>`}catch(e){el.textContent=e.message}}document.querySelector('#trackForm').addEventListener('submit',e=>{e.preventDefault();track(document.querySelector('#code').value.trim())});const code=new URLSearchParams(location.search).get('code');if(code)track(code);loadOrders();</script>
+</body></html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>SWAM — Livraison à Assinie</title>
+    <meta name="theme-color" content="#333333">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="swam.css">
+</head>
+
+<body>
+    <header class="top">
+        <nav class="wrap nav"><a class="logo" href="index.html">swam<i>.</i></a>
+            <div class="links"><a href="commandes.html">Mes commandes</a><a href="profil.html">Mon compte</a><a
+                    id="authLink" class="cta" href="connexion.html">Connexion</a></div>
+        </nav>
+    </header>
+
+    <main class="wrap">
+        <section class="hero">
+            <div class="hero-l">
+                <h1>Assinie commande. SWAM livre.</h1>
+                <p>Vos courses et essentiels, livrés de la plage au village, partout à Assinie.</p>
+                <form class="search"
+                    onsubmit="event.preventDefault();loadProducts();document.getElementById('catalogue').scrollIntoView()">
+                    <input id="search" placeholder="Que cherchez-vous ?"
+                        aria-label="Rechercher un produit"><button>Rechercher</button>
+                </form>
+            </div>
+            <aside class="hero-r">
+                <h2>Combien coûte ma livraison ?</h2>
+                <p>Choisissez votre quartier pour voir le tarif avant de commander.</p>
+                <select id="estDest" class="field" aria-label="Destination">
+                    <option value="">Choisir une destination…</option>
+                </select>
+                <div class="est"><span id="estLabel">Tarif à partir de</span><b class="big" id="estOut">150 FCFA</b>
+                </div>
+            </aside>
+        </section>
+        <section class="trust">
+            <div><em>⚡</em>
+                <p style="margin:0"><b>Livraison rapide</b><span>Dès que possible ou à l'heure choisie</span></p>
+            </div>
+            <div><em>💸</em>
+                <p style="margin:0"><b>Moins cher si vous patientez</b><span>Jusqu'à 150 FCFA de réduction</span></p>
+            </div>
+            <div><em>📍</em>
+                <p style="margin:0"><b>Suivi de commande</b><span>Avec un code de suivi</span></p>
+            </div>
+        </section>
+
+        <div class="head" id="catalogue">
+            <h2>Le catalogue</h2><span id="productCount" class="count">Chargement…</span>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div id="message" class="notice" style="display:none"></div>
+        <div id="products" class="grid"></div>
+    </main>
+
+    <footer class="footer">
+        <div class="wrap"><span class="logo">swam.</span><span>Livraison simple, rapide et pratique à Assinie.</span>
+        </div>
+    </footer>
+
+    <button class="fab" onclick="openCart()" aria-label="Ouvrir le panier">🛒 Panier<span
+            id="cartCount">0</span></button>
+    <div id="toast" class="toast" role="status"></div>
+
+    <div id="productModal" class="ov" onclick="if(event.target===this)closeProduct()">
+        <div class="panel">
+            <div class="ph-head">
+                <h2>Détails</h2><button class="ghost" onclick="closeProduct()" aria-label="Fermer">✕</button>
+            </div>
+            <div id="productDetail"></div>
+        </div>
+    </div>
+
+    <div id="cartModal" class="ov" onclick="if(event.target===this)closeCart()">
+        <div class="panel">
+            <div class="ph-head">
+                <h2>Votre panier</h2><button class="ghost" onclick="closeCart()" aria-label="Fermer">✕</button>
+            </div>
+            <div id="cartLines"></div>
+            <div id="cartTotal" class="total"></div>
+            <div class="form">
+                <label>Destination de livraison<select id="destination" class="field" onchange="updateDeliveryCost()">
+                        <option value="">Choisir une destination à Assinie…</option>
+                    </select></label>
+                <label>Quand livrer ?<select id="deliveryOption" class="field" onchange="updateDeliveryCost()">
+                        <option value="asap">Dès que possible — sans réduction</option>
+                        <option value="1h">Dans 1 heure — réduction de 50 FCFA</option>
+                        <option value="3h">Dans 3 heures — réduction de 90 FCFA</option>
+                        <option value="plus">Plus tard — réduction de 150 FCFA</option>
+                    </select></label>
+                <div class="fee" id="deliveryCostBox">Choisissez une destination .</div>
+                <label>Repère complémentaire (facultatif)<input id="addressExtra" class="field"
+                        placeholder="Précision pour le livreur…"></label>
+                <label>Méthode de paiement<select id="paymentMethod" class="field">
+                        <option value="genius_pay">Paiement en ligne</option>
+                        <option value="cash">Espèces / paiement à confirmer</option>
+                    </select></label>
+                <button id="checkoutBtn" onclick="checkout()">Confirmer la commande</button>
+                <p style="font-size:12px;color:var(--muted);margin:0">Le paiement en ligne n'est pas réversible.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'https://swamapp-production.up.railway.app'; const $ = s => document.querySelector(s);
+        let products = [], cats = [], cat = 'all', cart = JSON.parse(localStorage.getItem('swam_cart') || '{}'), selectedProduct = null;
+        const DESTINATIONS = [
+            [2, 'Pango 1', 'Mosquée, Assinie', 1000], [3, 'Pango 1', 'Eglise Assemblée de Dieu, Assinie', 900], [4, 'Pango 1', 'Résidence Egnehué, Assinie', 700], [5, 'Pango 2', 'Pharmacie, Assinie', 850], [6, 'Pango 2', 'Atelier espoir, Assinie', 1000], [7, 'Pango 2', 'Chez Mr Akalo, Assinie', 1300], [8, 'Epkouzan', 'Assinie Lodge, Assinie', 500], [9, 'Epkouzan', 'Campement, Assinie', 550], [10, 'Epkouzan', 'Milan hôtel Sominou, Assinie', 750], [11, 'Donwahi', 'Epp KPMG, Assinie', 900], [12, 'Donwahi', 'Essouman hôtel, Assinie', 1000], [13, 'Donwahi', 'Yamaman lodge, Assinie', 1300], [14, 'Voie principale', 'Sodeci Assinie', 400], [15, 'Voie principale', 'Cour royale, Assinie', 500], [16, 'Voie principale', 'Quai du Beach, Assinie', 700], [17, 'Voie principale', 'Pont, Assinie', 1800], [18, 'Voie principale', 'Mairie, Assinie', 1300], [19, 'Voie principale', 'Super marché Assinie', 1100], [20, 'Zion', 'Assinie Beach club, Assinie', 650], [21, 'Zion', 'Agence Moov, Assinie', 1200], [22, 'Zion', 'Maison ancien chef, Assinie', 1500], [23, 'Zion', 'Palais bar, Assinie', 700], [24, 'Zion', 'Zion Hôtel, Assinie', 1000], [25, 'Voie du marché', 'Au bord chez miss Olga, Assinie', 800], [26, 'Voie du marché', 'EPP Assinie 1A et 1B, Assinie', 350], [27, 'Voie du marché', 'Boulangerie, Assinie', 400], [28, 'Voie du commissariat', 'Commissariat, Assinie', 270], [29, 'Voie du commissariat', 'Cité des enseignants, Assinie', 400], [30, 'Voie du commissariat', 'Hôtel cool Mafia, Assinie', 600], [31, 'Voie du dispensaire', 'Dispensaire, Assinie', 100], [32, 'Voie du dispensaire', 'Hôtel Sandrofia, Assinie', 300], [33, 'Voie du dispensaire', 'Église méthodiste, Assinie', 400], [34, 'Voie Catholique', 'Maternité, Assinie', 200], [35, 'Sagbadou', 'Boutique Sagbadou, Assinie', 1200], [36, 'Sagbadou', 'Cimetière, Assinie', 800], [37, 'Sagbadou', 'Tarpon, Assinie', 650], [38, 'Alikro', 'Alikro, Assinie', 3000], [39, 'Abissa lodge', 'Abissa lodge, Assinie', 3100], [40, 'Station', 'Station, Assinie', 2500], [41, "N'goakro", "N'goakro, Assinie", 2700], [42, 'Carrefour Essankro', 'Carrefour Essankro, Assinie', 2700], [43, 'Biko lodge', 'Biko lodge, Assinie', 6300], [44, 'Résidence Djéne', 'Résidence Djéne, Assinie', 6400], [45, 'Le Sunshine lodge', 'Le Sunshine lodge, Assinie', 7300], [46, 'Mykonos', 'Mykonos, Assinie', 7800], [47, "L'escapade hôtel", "L'escapade hôtel, Assinie", 8800], [48, 'Akoula kan lodge', 'Akoula kan lodge, Assinie', 10400], [49, 'Nahiko hôtel', 'Nahiko hôtel, Assinie', 11300], [50, 'Akwa beach', 'Akwa beach, Assinie', 11600], [62, 'Assinie Beach Hôtel', 'Assinie Beach Hôtel, Assinie', 11600], [51, 'Coucoué lodge', 'Coucoué lodge, Assinie', 13400], [52, 'Marine de Babihana', 'Marine de Babihana, Assinie', 13500], [53, "Le Climbié d'Assinie", "Le Climbié d'Assinie, Assinie", 15200], [58, 'Hôtel André Richard', 'Hôtel André Richard, Assinie', 15400], [54, 'Villa Touraco', 'Villa Touraco, Assinie', 16000], [55, "La maison d'Akoula", "La maison d'Akoula, Assinie", 16000], [56, 'Villa Akwaba', 'Villa Akwaba, Assinie', 16200], [57, 'Elimah Houses', 'Elimah Houses, Assinie', 16600], [59, 'Féline Lodge', 'Féline Lodge, Assinie', 17600], [60, 'Hôtel le Premier Assouindé', 'Hôtel le Premier Assouindé, Assinie', 18500], [61, 'Notevia Hôtel', 'Notevia Hôtel, Assinie', 19000], [63, "Rond-point d'Assouindé", "Rond-point d'Assouindé, Assinie", 21200]];
+        const DELIVERY_OPTIONS = { asap: { label: 'Dès que possible', reduction: 0 }, '1h': { label: 'Dans 1 heure', reduction: -50 }, '3h': { label: 'Dans 3 heures', reduction: -90 }, plus: { label: 'Plus tard', reduction: -150 } };
+        const deliveryFee = d => Math.ceil(Number(d) / 100) * 90;
+        const money = n => Number(n || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' FCFA';
+        const km = d => (d / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' km';
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const token = () => localStorage.getItem('swam_token');
+        const findDest = id => DESTINATIONS.find(d => d[0] === Number(id));
+        const selectedDestination = () => findDest($('#destination').value);
+        const subtotal = () => Object.entries(cart).reduce((s, [id, x]) => s + (products.find(p => p.id === Number(id))?.prix || 0) * x.qty, 0);
+        function toast(s) { const t = $('#toast'); t.textContent = s; t.style.display = 'block'; clearTimeout(t._t); t._t = setTimeout(() => t.style.display = 'none', 3000) }
+        function headers(json = true) { const h = {}; if (json) h['Content-Type'] = 'application/json'; if (token()) h.Authorization = 'Bearer ' + token(); return h }
+        async function api(path, opts = {}) { const r = await fetch(API + path, { ...opts, headers: { ...headers(!(opts.body instanceof FormData)), ...(opts.headers || {}) } }); let d = {}; try { d = await r.json() } catch { } if (!r.ok) throw new Error(d.message || 'Erreur API (' + r.status + ')'); return d }
+        function updateAuth() { const u = JSON.parse(localStorage.getItem('swam_user') || 'null'), a = $('#authLink'); a.textContent = u ? (u.nom || 'Mon compte') + ' · Déconnexion' : 'Connexion'; a.href = u ? '#' : 'connexion.html'; a.onclick = u ? e => { e.preventDefault(); localStorage.removeItem('swam_token'); localStorage.removeItem('swam_user'); updateAuth(); toast('Déconnexion effectuée') } : null }
+        const cartQty = () => Object.values(cart).reduce((a, x) => a + x.qty, 0);
+        function saveCart() { localStorage.setItem('swam_cart', JSON.stringify(cart)); $('#cartCount').textContent = cartQty() }
+        function add(id) { const p = products.find(x => x.id === id); if (!p) return; if ((cart[id]?.qty || 0) >= p.stock) { toast('Stock insuffisant'); return } cart[id] = cart[id] || { qty: 0 }; cart[id].qty++; saveCart(); toast('Ajouté au panier') }
+        function productCard(p) { const out = p.stock <= 0; return `<article class="card" tabindex="0" aria-label="Voir ${esc(p.nom)}" onclick="openProduct(${p.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProduct(${p.id})}"><div class="ph">${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.nom)}" loading="lazy" onerror="this.remove()">` : '<span class="emoji">🛍️</span>'}${out ? '<span class="tag">Indisponible</span>' : ''}</div><div class="cb"><span class="cat">${esc(p.categorie || 'Produit')}</span><h3>${esc(p.nom)}</h3><div class="row"><span class="price">${money(p.prix)}</span><button class="add" aria-label="Ajouter ${esc(p.nom)} au panier" ${out ? 'disabled' : ''} onclick="event.stopPropagation();add(${p.id})">+</button></div></div></article>` }
+        function openProduct(id) { const p = selectedProduct = products.find(x => Number(x.id) === Number(id)); if (!p) return; $('#productDetail').innerHTML = `<div class="dimg">${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.nom)}" onerror="this.style.display='none'">` : '<span class="emoji" style="font-size:64px">🛍️</span>'}</div><span class="cat">${esc(p.categorie || 'Produit')}</span><h2 style="margin:2px 0;font-size:26px">${esc(p.nom)}</h2><div class="dprice">${money(p.prix)}</div><p style="color:var(--muted)">${esc(p.description || 'Un produit sélectionné par SWAM.')}</p><p class="count" style="color:${p.stock > 0 ? 'var(--oktext)' : 'var(--muted)'}">${p.stock > 0 ? 'Disponible' : 'Indisponible'}</p><button style="width:100%" ${p.stock <= 0 ? 'disabled' : ''} onclick="addFromDetail()">Ajouter au panier</button>`; $('#productModal').style.display = 'flex' }
+        const closeProduct = () => $('#productModal').style.display = 'none';
+        function addFromDetail() { if (selectedProduct) add(selectedProduct.id); closeProduct() }
+        function renderChips() { $('#chips').innerHTML = ['all', ...cats].map(c => `<button class="chip ${c === cat ? 'on' : ''}" data-c="${esc(c)}">${c === 'all' ? 'Tout' : esc(c)}</button>`).join('') }
+        $('#chips').onclick = e => { const b = e.target.closest('[data-c]'); if (b) { cat = b.dataset.c; renderChips(); loadProducts() } };
+        async function loadProducts() { const m = $('#message'); m.style.display = 'none'; $('#products').innerHTML = '<div class="sk"></div>'.repeat(8); try { const q = new URLSearchParams(), s = $('#search').value.trim(); if (s) q.set('search', s); if (cat !== 'all') q.set('categorie', cat); products = await api('/api/produits?' + q); $('#products').innerHTML = products.length ? products.map(productCard).join('') : '<div class="empty" style="grid-column:1/-1">Aucun produit trouvé. Essayez un autre mot ou une autre catégorie.</div>'; $('#productCount').textContent = products.length + ' produit(s)'; if (!s && cat === 'all') { cats = [...new Set(products.map(p => p.categorie).filter(Boolean))]; renderChips() } } catch (e) { m.style.display = 'block'; m.textContent = 'Impossible de charger le catalogue : ' + e.message + '. Vérifiez que le backend Railway est accessible.'; $('#products').innerHTML = ''; $('#productCount').textContent = '' } }
+        let searchTimer; $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadProducts, 300) });
+        function openCart() { renderCart(); $('#cartModal').style.display = 'flex' }
+        const closeCart = () => $('#cartModal').style.display = 'none';
+        function renderCart() { const lines = Object.entries(cart).map(([id, x]) => { const p = products.find(p => p.id === Number(id)); return p ? `<div class="line"><div><b>${esc(p.nom)}</b><div class="count">${money(p.prix)} / unité</div></div><div class="q"><button class="ghost" aria-label="Retirer un" onclick="changeQty(${id},-1)">−</button><b>${x.qty}</b><button class="ghost" aria-label="Ajouter un" onclick="changeQty(${id},1)">+</button></div><b>${money(p.prix * x.qty)}</b></div>` : '' }).join(''); $('#cartLines').innerHTML = lines || '<div class="empty">Votre panier est vide. Ajoutez un produit depuis le catalogue.</div>'; $('#cartTotal').textContent = 'Sous-total : ' + money(subtotal()); updateDeliveryCost() }
+        function fillDest(sel) { let last = ''; DESTINATIONS.forEach(d => { if (d[1] !== last) { const g = document.createElement('optgroup'); g.label = d[1]; sel.appendChild(g); last = d[1] } const o = document.createElement('option'); o.value = d[0]; o.textContent = d[2] + ' — ' + km(d[3]); sel.lastElementChild.appendChild(o) }) }
+        function updateEstimate() { const d = findDest($('#estDest').value); $('#estLabel').textContent = d ? 'Livraison vers ' + d[2].replace(', Assinie', '') : 'Tarif à partir de'; $('#estOut').textContent = money(d ? deliveryFee(d[3]) : 150); $('#estKm').textContent = d ? km(d[3]) + ' · 150 FCFA par tranche de 100 m' : '150 FCFA par tranche de 100 m'; if (d) { $('#destination').value = d[0] } }
+        $('#estDest').addEventListener('change', updateEstimate);
+        function updateDeliveryCost() { const d = selectedDestination(), o = DELIVERY_OPTIONS[$('#deliveryOption').value] || DELIVERY_OPTIONS.asap, box = $('#deliveryCostBox'); if (!d) { box.textContent = 'Choisissez une destination pour calculer les frais de livraison.'; return } const fee = deliveryFee(d[3]), final = Math.max(0, fee + o.reduction); box.innerHTML = `<b>${esc(d[2])}</b><br>Distance estimée : ${km(d[3])}<br>Frais de livraison : ${money(fee)}<br>Réduction : −${money(Math.abs(o.reduction))}<br><b>Livraison : ${money(final)}</b><br><b>Total estimé : ${money(subtotal() + final)}</b>` }
+        function changeQty(id, d) { const p = products.find(p => p.id === Number(id)); if (!cart[id]) return; cart[id].qty += d; if (cart[id].qty <= 0) delete cart[id]; else if (p && cart[id].qty > p.stock) { cart[id].qty = p.stock; toast('Stock maximum atteint') } saveCart(); renderCart() }
+        async function checkout() { if (!token()) { location.href = 'connexion.html?next=checkout'; return } if (!Object.keys(cart).length) { toast('Votre panier est vide'); return } const destination = selectedDestination(); if (!destination) { toast('Choisissez une destination dans la liste'); $('#destination').focus(); return } const optionKey = $('#deliveryOption').value, option = DELIVERY_OPTIONS[optionKey] || DELIVERY_OPTIONS.asap, frais = deliveryFee(destination[3]), reduction = option.reduction, finalFee = Math.max(0, frais + reduction), extra = $('#addressExtra').value.trim(), adresse = destination[2] + (extra ? ' — ' + extra : ''), btn = $('#checkoutBtn'); btn.disabled = true; btn.textContent = 'Création de la commande…'; try { const data = await api('/api/commandes', { method: 'POST', body: JSON.stringify({ items: Object.entries(cart).map(([id, x]) => ({ produit_id: Number(id), quantity: x.qty })), adresse_livraison: adresse, destination_nom: destination[1], distance: destination[3], frais_livraison: finalFee, reduction: reduction, delivery_option: optionKey, methode_paiement: $('#paymentMethod').value }) }); cart = {}; saveCart(); closeCart(); if ($('#paymentMethod').value === 'genius_pay') { try { const pay = await api('/api/payment/initiate', { method: 'POST', body: JSON.stringify({ order_id: data.commande_id, currency: 'XOF' }) }); if (pay.checkout_url) { location.href = pay.checkout_url; return } } catch (payErr) { toast('Commande créée. Paiement à reprendre : ' + payErr.message) } } location.href = 'commandes.html?code=' + encodeURIComponent(data.code_suivi) } catch (e) { toast(e.message) } finally { btn.disabled = false; btn.textContent = 'Confirmer la commande' } }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeCart(); closeProduct() } });
+        updateAuth(); saveCart(); fillDest($('#destination')); fillDest($('#estDest')); renderChips(); loadProducts();
+    </script>
+</body>
+
+</html>

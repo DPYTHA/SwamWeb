@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Paiement — SWAM</title>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            font: 15px/1.5 system-ui;
+            color: #242424
+        }
+
+        .card {
+            background: white;
+            width: min(100%, 480px);
+            padding: 30px;
+            border-radius: 22px;
+            text-align: center;
+            box-shadow: 0 20px 60px #762c1d44
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 900;
+            color: #ff6b6b;
+            text-decoration: none
+        }
+
+        .status {
+            font-size: 50px
+        }
+
+        .muted {
+            color: #777
+        }
+
+        button {
+            border: 0;
+            background: #ff6b6b;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 800;
+            cursor: pointer
+        }
+
+        a.link {
+            display: inline-block;
+            margin-top: 10px
+        }
+    </style>
+</head>
+
+<body>
+    <section class="card"><a class="logo" href="index.html">swam.</a>
+        <div class="status">💳</div>
+        <h1>État du paiement</h1>
+        <p id="message" class="muted">Vérification du paiement…</p>
+        <div id="details"></div><button onclick="checkStatus()">Vérifier à nouveau</button>
+        <p><a class="link" href="commandes.html">Voir mes commandes</a></p>
+        <p><a class="link" href="index.html">Retour à l’accueil</a></p>
+    </section>
+    <script>const API = 'https://swamapp-production.up.railway.app'; const orderId = new URLSearchParams(location.search).get('order_id'); async function checkStatus() { const el = document.querySelector('#message'); if (!localStorage.getItem('swam_token')) { el.textContent = 'Connecte-toi pour vérifier le statut du paiement.'; return } if (!orderId) { el.textContent = 'Aucune commande précisée dans l’adresse de la page.'; return } el.textContent = 'Vérification en cours…'; try { const r = await fetch(API + '/api/payment/status/' + encodeURIComponent(orderId), { headers: { Authorization: 'Bearer ' + localStorage.getItem('swam_token') } }); const d = await r.json(); if (!r.ok) throw Error(d.message || 'Erreur API'); el.textContent = d.statut === 'valide' ? 'Paiement validé. Merci pour ta commande !' : d.statut === 'en_attente' ? 'Paiement en attente de confirmation.' : 'Statut : ' + d.statut; document.querySelector('#details').innerHTML = `<p><b>Montant :</b> ${Number(d.montant || 0).toLocaleString('fr-FR')} FCFA</p><p><b>Méthode :</b> ${d.methode || '—'}</p>` } catch (e) { el.textContent = e.message } } checkStatus();</script>
+</body>
+
+</html>

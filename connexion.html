@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion — SWAM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="swam.css">
+</head><body>
+<div class="auth">
+<aside class="auth-l"><a class="logo" href="index.html">swam<i>.</i></a><h2>Commandez ici, recevez à Assinie.</h2></aside>
+<section class="auth-r"><div class="auth-box">
+<h1 id="heading">Bon retour !</h1>
+<p class="muted" style="margin:0">Connectez-vous pour commander et suivre vos livraisons.</p>
+<div class="tabs"><button id="loginTab" class="active" onclick="setMode('login')">Connexion</button><button id="registerTab" onclick="setMode('register')">Créer un compte</button></div>
+<div id="error" class="error" role="alert"></div>
+<form id="authForm">
+<div id="nameWrap" style="display:none"><label for="nom">Nom complet</label><input class="field" id="nom" autocomplete="name" placeholder="Votre nom"></div>
+<label for="telephone">Téléphone</label><input class="field" id="telephone" inputmode="tel" autocomplete="tel" placeholder="Ex. 0700000000" required>
+<label for="password">Mot de passe</label><input class="field" id="password" type="password" autocomplete="current-password" minlength="4" required>
+<button class="submit" id="submit">Se connecter</button>
+</form>
+<a class="back" href="index.html">← Retour à l’accueil</a>
+</div></section></div>
+<script>const API='https://swamapp-production.up.railway.app';let mode='login';function setMode(m){mode=m;document.querySelector('#nameWrap').style.display=m==='register'?'block':'none';document.querySelector('#heading').textContent=m==='register'?'Créer mon compte':'Bon retour !';document.querySelector('#submit').textContent=m==='register'?'Créer mon compte':'Se connecter';document.querySelector('#password').autocomplete=m==='register'?'new-password':'current-password';document.querySelector('#loginTab').classList.toggle('active',m==='login');document.querySelector('#registerTab').classList.toggle('active',m==='register');document.querySelector('#error').style.display='none'}document.querySelector('#authForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.querySelector('#submit'),err=document.querySelector('#error');btn.disabled=true;btn.textContent='Patientez…';err.style.display='none';const body={telephone:document.querySelector('#telephone').value.trim(),mot_de_passe:document.querySelector('#password').value};if(mode==='register')body.nom=document.querySelector('#nom').value.trim();try{const r=await fetch(API+(mode==='register'?'/api/register':'/api/login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.message||'Échec de connexion');localStorage.setItem('swam_token',d.token);localStorage.setItem('swam_user',JSON.stringify(d.user));location.href=d.user.role==='admin'?'admin.html':d.user.role==='livreur'?'livreur.html':'index.html'}catch(e){err.textContent=e.message;err.style.display='block'}finally{btn.disabled=false;btn.textContent=mode==='register'?'Créer mon compte':'Se connecter'}});</script>
+</body></html>

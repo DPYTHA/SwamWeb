@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mon compte — SWAM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="swam.css">
+</head><body>
+<header class="top"><nav class="wrap nav"><a class="logo" href="index.html">swam<i>.</i></a>
+<div class="links"><a href="index.html">Accueil</a><a href="commandes.html">Mes commandes</a><a class="cta" href="index.html#catalogue">Commander</a></div></nav></header>
+<main class="wrap page">
+<h1>Mon compte</h1>
+<p class="muted">Gérez votre profil, vos adresses et vos favoris.</p>
+<section class="box" style="margin-top:20px"><h2>Statistiques d’achat</h2><div id="stats">Chargement…</div></section>
+<div class="g2">
+<section class="box"><h2>Profil</h2><div id="profile">Chargement…</div>
+<form id="profileForm"><label class="fl" for="nom">Nom complet<input class="field" id="nom" placeholder="Votre nom"></label><button style="margin-top:14px">Enregistrer</button></form>
+<div id="profileMsg" class="msg" role="status"></div>
+<button class="ghost" style="margin-top:14px" onclick="logout()">Se déconnecter</button></section>
+<section class="box"><h2>Ajouter une adresse</h2>
+<form id="addressForm">
+<label class="fl">Nom de l’adresse<input class="field" id="addrName" placeholder="Maison, bureau…" required></label>
+<label class="fl">Adresse complète<input class="field" id="addrText" placeholder="Quartier, rue, repère…" required></label>
+<label class="fl">Téléphone<input class="field" id="addrPhone" inputmode="tel" placeholder="0700000000" required></label>
+<label class="fl" style="grid-auto-flow:column;justify-content:start;align-items:center;gap:8px"><input id="addrMain" type="checkbox" style="width:18px;height:18px;accent-color:var(--primary)">Adresse principale</label>
+<button style="margin-top:14px">Ajouter l’adresse</button></form>
+<div id="addressMsg" class="msg" role="status"></div></section>
+</div>
+<section class="box" style="margin-top:16px"><h2>Mes adresses</h2><div id="addresses">Chargement…</div></section>
+<section class="box"><h2>Mes favoris</h2><div id="wishlist">Chargement…</div></section>
+</main>
+<script>const API='https://swamapp-production.up.railway.app';const token=()=>localStorage.getItem('swam_token');async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),Authorization:'Bearer '+token(),...(opts.headers||{})}});let d;try{d=await r.json()}catch{d={}}if(!r.ok)throw Error(d.message||'Erreur '+r.status);return d}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function logout(){localStorage.removeItem('swam_token');localStorage.removeItem('swam_user');location.href='index.html'}async function load(){if(!token()){document.querySelector('#profile').innerHTML='Connectez-vous pour consulter votre compte. <a href="connexion.html"><b>Se connecter</b></a>';['addresses','wishlist','stats'].forEach(id=>document.getElementById(id).textContent='Connexion requise');return}try{const p=await api('/api/profile');document.querySelector('#profile').innerHTML=`<div class="bar"><div class="avatar">${esc((p.nom||'C').trim().charAt(0).toUpperCase())}</div><div><b>${esc(p.nom||'Client')}</b><div class="muted">${esc(p.telephone)} · ${esc(p.role)}</div></div></div>`;document.querySelector('#nom').value=p.nom||'';const a=await api('/api/client/adresses');document.querySelector('#addresses').innerHTML=a.length?a.map(x=>`<div class="line"><div><b>${esc(x.nom)}</b> ${x.est_principale?'<span class="status">Principale</span>':''}<div class="muted">${esc(x.adresse)} · ${esc(x.telephone)}</div></div><button class="ghost" onclick="delAddress(${x.id})">Supprimer</button></div>`).join(''):'<div class="empty">Aucune adresse enregistrée. Ajoutez-en une pour commander plus vite.</div>';const w=await api('/api/client/wishlist');document.querySelector('#wishlist').innerHTML=w.length?w.map(x=>`<div class="line"><div><b>${esc(x.produit.nom)}</b><div class="muted">${money(x.produit.prix)}</div></div><button class="ghost" onclick="removeWish(${x.id})">Retirer</button></div>`).join(''):'<div class="empty">Aucun favori pour le moment.</div>';const s=await api('/api/client/statistiques');document.querySelector('#stats').innerHTML=`<div class="stats"><div><b>${s.total_commandes}</b><span class="muted">commande(s)</span></div><div><b>${money(s.total_depense)}</b><span class="muted">dépensés</span></div><div><b>${s.points_fidelite}</b><span class="muted">points fidélité</span></div></div>`}catch(e){document.querySelector('#profile').textContent=e.message}}document.querySelector('#profileForm').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/profile/update',{method:'PUT',body:JSON.stringify({nom:document.querySelector('#nom').value.trim()})});document.querySelector('#profileMsg').textContent='Profil mis à jour.';load()}catch(err){document.querySelector('#profileMsg').textContent=err.message}});document.querySelector('#addressForm').addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/client/adresses',{method:'POST',body:JSON.stringify({nom:document.querySelector('#addrName').value.trim(),adresse:document.querySelector('#addrText').value.trim(),telephone:document.querySelector('#addrPhone').value.trim(),est_principale:document.querySelector('#addrMain').checked})});document.querySelector('#addressMsg').textContent='Adresse ajoutée.';e.target.reset();load()}catch(err){document.querySelector('#addressMsg').textContent=err.message}});async function delAddress(id){if(!confirm('Supprimer cette adresse ?'))return;try{await api('/api/client/adresses/'+id,{method:'DELETE'});load()}catch(e){alert(e.message)}}async function removeWish(id){try{await api('/api/client/wishlist/'+id,{method:'DELETE'});load()}catch(e){alert(e.message)}}load();</script>
+</body></html>
