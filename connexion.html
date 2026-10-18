@@ -4,21 +4,60 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="swam.css">
+<style>
+.forgot{display:block;margin-top:12px;font-size:14px;font-weight:700;color:var(--text);text-decoration:underline;text-decoration-color:var(--primary);text-underline-offset:3px}
+.info{display:none;background:#4CAF5018;color:var(--oktext);padding:10px 14px;border-radius:12px;margin-top:14px;font-size:14px;font-weight:500}
+.codebox{background:var(--surface);border-left:6px solid var(--secondary);border-radius:6px 16px 16px 6px;padding:16px;margin-top:18px;display:grid;gap:2px}
+.codebox .k{font-size:12px;font-weight:700;color:var(--light);text-transform:uppercase;letter-spacing:.04em}
+.codebox b{font:800 38px "Bricolage Grotesque";letter-spacing:.14em}
+.codebox span{font-size:13px;color:var(--light)}
+</style>
 </head><body>
 <div class="auth">
 <aside class="auth-l"><a class="logo" href="index.html">swam<i>.</i></a><h2>Commandez ici, recevez à Assinie.</h2></aside>
 <section class="auth-r"><div class="auth-box">
 <h1 id="heading">Bon retour !</h1>
-<p class="muted" style="margin:0">Connectez-vous pour commander et suivre vos livraisons.</p>
-<div class="tabs"><button id="loginTab" class="active" onclick="setMode('login')">Connexion</button><button id="registerTab" onclick="setMode('register')">Créer un compte</button></div>
+<p class="muted" id="sub" style="margin:0">Connectez-vous pour commander et suivre vos livraisons.</p>
+<div class="tabs" id="tabs"><button id="loginTab" class="active" onclick="setMode('login')">Connexion</button><button id="registerTab" onclick="setMode('register')">Créer un compte</button></div>
+<div id="info" class="info" role="status"></div>
 <div id="error" class="error" role="alert"></div>
+
 <form id="authForm">
 <div id="nameWrap" style="display:none"><label for="nom">Nom complet</label><input class="field" id="nom" autocomplete="name" placeholder="Votre nom"></div>
 <label for="telephone">Téléphone</label><input class="field" id="telephone" inputmode="tel" autocomplete="tel" placeholder="Ex. 0700000000" required>
 <label for="password">Mot de passe</label><input class="field" id="password" type="password" autocomplete="current-password" minlength="4" required>
+<a href="#" class="forgot" id="forgotLink" onclick="showForgot(event)">Mot de passe oublié ?</a>
 <button class="submit" id="submit">Se connecter</button>
 </form>
-<a class="back" href="index.html">← Retour à l’accueil</a>
+
+<section id="forgot" style="display:none">
+<form id="fForm1">
+<label for="fTel">Votre numéro de téléphone</label><input class="field" id="fTel" inputmode="tel" autocomplete="tel" placeholder="Ex. 0700000000" required>
+<button class="submit" id="fBtn1">Générer mon code</button>
+</form>
+<div id="fResult" style="display:none">
+<div class="codebox"><span class="k">Votre nouveau mot de passe</span><b id="newCode"></b><span>Ce code remplace l'ancien mot de passe. Notez-le bien.</span></div>
+<button type="button" class="ghost" id="copyBtn" style="width:100%;margin-top:12px" onclick="copyCode()">Copier le code</button>
+<button type="button" class="submit" onclick="useCode()">Me connecter</button>
+</div>
+<a class="back" href="#" onclick="backToLogin(event)">← Retour à la connexion</a>
+</section>
+
+<a class="back" id="homeLink" href="index.html">← Retour à l’accueil</a>
 </div></section></div>
-<script>const API='https://swamapp-production.up.railway.app';let mode='login';function setMode(m){mode=m;document.querySelector('#nameWrap').style.display=m==='register'?'block':'none';document.querySelector('#heading').textContent=m==='register'?'Créer mon compte':'Bon retour !';document.querySelector('#submit').textContent=m==='register'?'Créer mon compte':'Se connecter';document.querySelector('#password').autocomplete=m==='register'?'new-password':'current-password';document.querySelector('#loginTab').classList.toggle('active',m==='login');document.querySelector('#registerTab').classList.toggle('active',m==='register');document.querySelector('#error').style.display='none'}document.querySelector('#authForm').addEventListener('submit',async e=>{e.preventDefault();const btn=document.querySelector('#submit'),err=document.querySelector('#error');btn.disabled=true;btn.textContent='Patientez…';err.style.display='none';const body={telephone:document.querySelector('#telephone').value.trim(),mot_de_passe:document.querySelector('#password').value};if(mode==='register')body.nom=document.querySelector('#nom').value.trim();try{const r=await fetch(API+(mode==='register'?'/api/register':'/api/login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.message||'Échec de connexion');localStorage.setItem('swam_token',d.token);localStorage.setItem('swam_user',JSON.stringify(d.user));location.href=d.user.role==='admin'?'admin.html':d.user.role==='livreur'?'livreur.html':'index.html'}catch(e){err.textContent=e.message;err.style.display='block'}finally{btn.disabled=false;btn.textContent=mode==='register'?'Créer mon compte':'Se connecter'}});</script>
+<script>
+const API='https://swamapp-production.up.railway.app';const $=s=>document.querySelector(s);let mode='login',resetPhone='',resetCode='';
+const showErr=m=>{const e=$('#error');e.textContent=m;e.style.display=m?'block':'none'};
+const showInfo=m=>{const e=$('#info');e.textContent=m;e.style.display=m?'block':'none'};
+async function post(path,body){const r=await fetch(API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.message||'Une erreur est survenue');return d}
+function setMode(m){mode=m;$('#tabs').style.display='flex';$('#authForm').style.display='block';$('#forgot').style.display='none';$('#homeLink').style.display='block';$('#nameWrap').style.display=m==='register'?'block':'none';$('#forgotLink').style.display=m==='login'?'block':'none';$('#heading').textContent=m==='register'?'Créer mon compte':'Bon retour !';$('#sub').textContent='Connectez-vous pour commander et suivre vos livraisons.';$('#submit').textContent=m==='register'?'Créer mon compte':'Se connecter';$('#password').autocomplete=m==='register'?'new-password':'current-password';$('#loginTab').classList.toggle('active',m==='login');$('#registerTab').classList.toggle('active',m==='register');showErr('')}
+function showForgot(e){e.preventDefault();showErr('');showInfo('');$('#tabs').style.display='none';$('#authForm').style.display='none';$('#homeLink').style.display='none';$('#forgot').style.display='block';$('#fForm1').style.display='block';$('#fResult').style.display='none';$('#heading').textContent='Mot de passe oublié';$('#sub').textContent='Entrez votre numéro : un code est généré et remplace votre ancien mot de passe.';$('#fTel').value=$('#telephone').value}
+function backToLogin(e){e.preventDefault();showInfo('');setMode('login')}
+$('#authForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('#submit');btn.disabled=true;btn.textContent='Patientez…';showErr('');showInfo('');const body={telephone:$('#telephone').value.trim(),mot_de_passe:$('#password').value};if(mode==='register')body.nom=$('#nom').value.trim();try{const d=await post(mode==='register'?'/api/register':'/api/login',body);localStorage.setItem('swam_token',d.token);localStorage.setItem('swam_user',JSON.stringify(d.user));location.href=d.user.role==='admin'?'admin.html':d.user.role==='livreur'?'livreur.html':'index.html'}catch(err){showErr(err.message)}finally{btn.disabled=false;btn.textContent=mode==='register'?'Créer mon compte':'Se connecter'}});
+/* Mot de passe oublié : /api/forgot-password génère le code, /api/reset-password l'enregistre comme nouveau mot de passe */
+$('#fForm1').addEventListener('submit',async e=>{e.preventDefault();const btn=$('#fBtn1');btn.disabled=true;btn.textContent='Génération…';showErr('');const tel=$('#fTel').value.trim();try{const d=await post('/api/forgot-password',{telephone:tel});if(!d.debug_code)throw new Error('Code indisponible. Contactez le support SWAM.');await post('/api/reset-password',{telephone:tel,code:d.debug_code,new_password:d.debug_code});resetPhone=tel;resetCode=d.debug_code;$('#newCode').textContent=resetCode;$('#fForm1').style.display='none';$('#fResult').style.display='block';$('#heading').textContent='Mot de passe remplacé';$('#sub').textContent='Utilisez ce code comme mot de passe pour vous connecter.'}catch(err){showErr(err.message)}finally{btn.disabled=false;btn.textContent='Générer mon code'}});
+function copyCode(){const b=$('#copyBtn');(navigator.clipboard?navigator.clipboard.writeText(resetCode):Promise.reject()).then(()=>b.textContent='Copié ✔').catch(()=>b.textContent='Copiez le code à la main')}
+function useCode(){setMode('login');$('#telephone').value=resetPhone;$('#password').value=resetCode;showInfo('Mot de passe remplacé. Appuyez sur « Se connecter ».');$('#submit').focus()}
+setMode('login');
+</script>
 </body></html>
